@@ -16,21 +16,13 @@ size_t flip_coin(struct file *f, char __user *user, size_t size, loff_t *loff)
 	char *arr[2] = { "heads\n", "tails\n" };
 	
 	// simple_read_from_buffer() - copy data from the buffer to userspace
-	// want to do more here:
-	err = simple_read_from_buffer(user,,,,)
+	pr_info("Calling flip coin");
 	if(err < 0)
 	{
 		printk(KERN_ALERT "SIMPLE_READ_FROM_BUFFER: %d\n", err);
 		return err;
 	}
 
-}
-
-	
-	
-			
-		
-	
 }
 
 int init_module(void)
