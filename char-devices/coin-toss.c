@@ -11,11 +11,24 @@ struct cdev cdev;
 
 size_t flip_coin(struct file *f, char __user *user, size_t size, loff_t *loff)
 {
+	int err;
 	u32 random = get_random_u32() % 2;
 	char *arr[2] = { "heads\n", "tails\n" };
 	
-	//write to userspace here
-		
+	// simple_read_from_buffer() - copy data from the buffer to userspace
+	// want to do more here:
+	err = simple_read_from_buffer(user,,,,)
+	if(err < 0)
+	{
+		printk(KERN_ALERT "SIMPLE_READ_FROM_BUFFER: %d\n", err);
+		return err;
+	}
+
+}
+
+	
+	
+			
 		
 	
 }
@@ -47,7 +60,7 @@ int init_module(void)
 		return err;
 	}
 
-	printk(KERN_INFO "COIN MAJOR NUMBER: %Dd\n", major_number);			
+	printk(KERN_INFO "COIN MAJOR NUMBER: %d\n", major_number);			
 
 	return err;
 }	
