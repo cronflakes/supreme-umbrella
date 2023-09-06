@@ -5,25 +5,31 @@
 #include <linux/random.h>
 #include <linux/uaccess.h>
 
-int major_number;
-struct file_operations fops = { .read = flip_coin };
-struct cdev cdev;
+ssize_t flip_coin(struct file *, char __user *, size_t, loff_t *);
 
-size_t flip_coin(struct file *f, char __user *user, size_t size, loff_t *loff)
+int major_number;
+struct cdev cdev;
+struct file_operations fops = { .owner = THIS_MODULE, .read = flip_coin };
+
+ssize_t flip_coin(struct file *f, char __user *user, size_t size, loff_t *loff)
 {
-	int err;
+	int err = 0;
 	u32 random = get_random_u32() % 2;
 	char *arr[2] = { "heads\n", "tails\n" };
 	
 	// simple_read_from_buffer() - copy data from the buffer to userspace
-	pr_info("Calling flip coin");
+	// using dummy variables to clean up messages
+	pr_info("Calling flip coin: %p\t%d", arr, random);
 	if(err < 0)
 	{
 		printk(KERN_ALERT "SIMPLE_READ_FROM_BUFFER: %d\n", err);
 		return err;
+	
 	}
 
+	return err;
 }
+
 
 int init_module(void)
 {
@@ -62,7 +68,8 @@ void cleanup_module(void)
 	// cdev_del() - remove a cdev from the system
 	cdev_del(&cdev);
 
-	// unregister_chrdev_region - ungregister a rance of device numbers
+	// unregister_chrdev_region - ungregister a range of device numbers
 	unregister_chrdev_region(major_number, 0);
 }
 	
+MODULE_LICENSE("GPL");
