@@ -4,6 +4,8 @@
 #include <linux/cdev.h>
 #include <linux/random.h>
 #include <linux/uaccess.h>
+#include <linux/pid.h>
+#include <linux/string.h>
 
 ssize_t flip_coin(struct file *, char __user *, size_t, loff_t *);
 
@@ -15,28 +17,21 @@ ssize_t flip_coin(struct file *f, char __user *user, size_t size, loff_t *loff)
 {
 	int err = 0;
 	u32 random = get_random_u32() % 2;
-	char *arr[2] = { "heads\n", "tails\n" };
+	char *arr[2] = { "heads", "tails" };
+	char msg[32];
+	pid_t ppid = current->real_parent->pid;
 	
-	// simple_read_from_buffer() - copy data from the buffer to userspace
-	// using dummy variables to clean up messages
-	pr_info("Calling flip coin: %p\t%d", arr, random);
-	if(err < 0)
-	{
-		printk(KERN_ALERT "SIMPLE_READ_FROM_BUFFER: %d\n", err);
-		return err;
-	
-	}
+	snprintf(msg, sizeof(msg), "PID: %d flipped %s!!!", ppid, arr[random]);
+	printk(KERN_INFO "%s\n", msg);
 
 	return err;
 }
-
 
 int init_module(void)
 {
 	int err;
 	dev_t dev;
 
-	// alloc_chrdev_region() - register a range of char device numbers
 	err = alloc_chrdev_region(&dev, 0, 1, "coin-toss");
 	if(err != 0)
 	{
@@ -44,13 +39,9 @@ int init_module(void)
 		return err;
 	}
 	
-	// #define MAJOR(dev)	((dev)>>8)
 	major_number = MAJOR(dev);
-
-	// cdev_init() - initialize cdev structure
 	cdev_init(&cdev, &fops);
 	
-	// cdev_add() - add a char device to the system
 	err = cdev_add(&cdev, dev, 1);
 	if(err < 0)
 	{
@@ -65,10 +56,7 @@ int init_module(void)
 
 void cleanup_module(void)
 {
-	// cdev_del() - remove a cdev from the system
 	cdev_del(&cdev);
-
-	// unregister_chrdev_region - ungregister a range of device numbers
 	unregister_chrdev_region(major_number, 0);
 }
 	
