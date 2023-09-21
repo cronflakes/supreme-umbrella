@@ -27,6 +27,7 @@ ssize_t flip_coin(struct file *f, char __user *user, size_t size, loff_t *loff)
 	return err;
 }
 
+//char device program - quick check my install scripts run and I get a quick win by knowing I can compile and install modules on new machine
 int init_module(void)
 {
 	int err;
