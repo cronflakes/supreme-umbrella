@@ -23,11 +23,11 @@ if which yum; then
 	sudo yum -y update
 	sudo yum -y install autoconf automake binutils bison \
    	flex gcc gdb glibc-devel libtool make pkgconf \
-   	pkgconf-m4 pkgconf-pkg-config redhat-rpm-config 
+   	pkgconf-m4 pkgconf-pkg-config redhat-rpm-config qemu-kvm
 	sudo yum -y install epel-release
 	#recall this working on 9 and failing on 8
 	if sudo yum config-manager --set-enabled powertools; then
-		sudo yum -y install dwarves
+		sudo yum -y install dwarves 
 	else
 		echo "Manually install PowerTools repo"
 		RELEASE=$(cat /etc/*release)
