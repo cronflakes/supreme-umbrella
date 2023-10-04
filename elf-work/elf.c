@@ -36,15 +36,19 @@ int main(int argc, char **argv) {
 	printf("shdr is %p\n", shdr);
 	
 	for(int i = 0; i < ehdr->e_phnum; i++) {
-		if(phdr[i].p_type == 4) {
-			phdr[i].p_type = 1;	
+		if(phdr[i].p_type == PT_NOTE) {
+			phdr[i].p_type = PT_LOAD;	
 		}
 	}	
 
+	for(int i = 0; i < ehdr->e_shnum; i++) {
+		if(shdr[i].sh_type == SHT_NOTE) {
+			shdr[i].sh_type = SHT_PROGBITS;
+			shdr[i].sh_addr = 
+			break;
+		}	
+	}
+
 	return 0;
 }
-	
-
-
-	
 	
