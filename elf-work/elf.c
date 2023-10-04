@@ -8,8 +8,10 @@
 
 int main(int argc, char **argv) {
 	int fd;
+	Elf64_Addr orig_entry;
 	void *addr = NULL;
 	struct stat s;
+	
 
 	Elf64_Ehdr *ehdr;
 	Elf64_Phdr *phdr;
@@ -34,17 +36,23 @@ int main(int argc, char **argv) {
 	printf("ehdr is %p\n", ehdr);
 	printf("phdr is %p\n", phdr);
 	printf("shdr is %p\n", shdr);
+	orig_entry = ehdr->e_entry;
 	
 	for(int i = 0; i < ehdr->e_phnum; i++) {
 		if(phdr[i].p_type == PT_NOTE) {
 			phdr[i].p_type = PT_LOAD;	
+			phdr[i].p_paddr = (Elf64_Addr)0x31540;
+			phdr[i].p_vaddr = (Elf64_Addr)0x31540;
 		}
 	}	
 
 	for(int i = 0; i < ehdr->e_shnum; i++) {
 		if(shdr[i].sh_type == SHT_NOTE) {
 			shdr[i].sh_type = SHT_PROGBITS;
-			shdr[i].sh_addr = 
+			shdr[i].sh_addr = (Elf64_Addr)0x31540;
+			shdr[i].sh_size = 0xabc; 
+			shdr[i].sh_flags = SHF_ALLOC | SHF_EXECINSTR;
+			shdr[i].sh_addralign = 0;
 			break;
 		}	
 	}
