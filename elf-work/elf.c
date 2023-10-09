@@ -31,6 +31,8 @@ int main(int argc, char **argv) {
 	ehdr = (Elf64_Ehdr *)addr;
 	phdr = (Elf64_Phdr *)(addr + ehdr->e_phoff);
 	shdr = (Elf64_Shdr *)(addr + ehdr->e_shoff);
+
+	//save initial entry to jump back to
 	orig_entry = ehdr->e_entry;
 
 	//program headers	
@@ -39,7 +41,9 @@ int main(int argc, char **argv) {
 			phdr[i].p_type = PT_LOAD;	
 			phdr[i].p_paddr = (Elf64_Addr)0x31540;
 			phdr[i].p_vaddr = (Elf64_Addr)0x31540;
-			//TODO - add offset, alignment, exec flags
+			phdr[i].offset = 0x0;
+			phdr[i].flags =  PF_R | PF_W;
+			phdr[i].p_align = 0x10000;
 		}
 	}	
 
@@ -51,7 +55,6 @@ int main(int argc, char **argv) {
 			shdr[i].sh_size = 0xabc; 
 			shdr[i].sh_flags = SHF_ALLOC | SHF_EXECINSTR;
 			shdr[i].sh_addralign = 0;
-			//TODO - add offset
 			break;
 		}	
 	}
