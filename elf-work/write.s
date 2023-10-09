@@ -13,13 +13,14 @@ _start:
 	xor rax, rax
 	mov al, 1
 	xor rdi, rdi
-	mov rdi, 1
+	mov sil, 1
 	lea rsi, [rbp - 16]	
-	mov rdx, 14
+	xor rdx, rdx
+	mov dl, 16
 	syscall
 
 	mov rax, 60
-	mov rdi, 0
+	xor rdi, rdi
 	syscall
 
 
