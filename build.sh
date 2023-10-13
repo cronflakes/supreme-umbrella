@@ -16,7 +16,8 @@ if which apt; then
 	sudo apt -y update && sudo apt -y upgrade
 	sudo apt -y install git fakeroot build-essential \
 		ncurses-dev xz-utils libssl-dev bc flex \
-		libelf-dev bison qemu-system-x86 gdb dwarves
+		libelf-dev bison qemu-system-x86 gdb dwarves \
+  		debootstrap
 fi;
 
 if which yum; then
