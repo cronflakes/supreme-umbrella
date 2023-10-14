@@ -14,7 +14,6 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 	
 	f = fdget(fd);
 	if(f.file) {
-	
 		ret = __sys_accept4_file_fp(f.file, 0, upeer_sockaddr, upeer_addrlen, flags, rlimit(RLIMIT_NOFILE));
 		fdput(f);	
 	}
