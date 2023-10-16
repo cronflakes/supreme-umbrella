@@ -57,11 +57,17 @@ struct klp_patch patch = {
 
 int init_module(void)
 {
+<<<<<<< HEAD
 	const char *symbol = "__sys_accept4_file";
 	__sys_accept4_file_fp = (void *)lookup_addr(symbol);
 	if(__sys_accept4_file_fp) {
 		klp_enable_patch(&patch);	
 	} 
+=======
+	const char *func_name = "__sys_accept4_file";
+	__sys_accept4_file_fp = (void *)lookup_addr(func_name);
+	klp_enable_patch(&patch);	
+>>>>>>> 133fd9fcae42b087d7f9685e8908c4d9586369c5
 
 	return 0;
 }
