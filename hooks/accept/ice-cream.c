@@ -4,6 +4,7 @@
 #include <linux/file.h>
 #include <linux/kprobes.h>
 #include <linux/livepatch.h>
+#include <linux/kallsyms.h>
 
 int (*__sys_accept4_file_fp)(struct file *, unsigned, struct sockaddr __user *, int __user *, int, unsigned long);
 
@@ -14,7 +15,6 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 	
 	f = fdget(fd);
 	if(f.file) {
-	
 		ret = __sys_accept4_file_fp(f.file, 0, upeer_sockaddr, upeer_addrlen, flags, rlimit(RLIMIT_NOFILE));
 		fdput(f);	
 	}
@@ -23,17 +23,19 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 	return ret;	
 }
 
-unsigned long lookup_addr(char *name)
+unsigned long lookup_addr(char *symbol)
 {
+	int ret;
 	unsigned long addr;
 	struct kprobe kp;
 
-	kp.symbol_name = name;
-	if(register_kprobe(&kp) < 0) {
-		return 0;
+	kp.symbol_name = symbol;
+	ret = register_kprobe(&kp)
+	if(ret == 0) {
+		addr = (unsigned long)kp.addr;
 	} else {
-		addr = (unsigned long)kp.addr;	
-		unregister_kprobe(&kp);
+		pr_info("REGISTER_KPROBE: %d\n", ret);
+		return 0;
 	}
 	
 	return addr;
@@ -55,13 +57,19 @@ struct klp_patch patch = {
 
 int init_module(void)
 {
-	__sys_accept4_file_fp = (void *)lookup_addr("__sys_accept4_file_fp");
-	klp_enable_patch(&patch);	
+	const char *symbol = "__sys_accept4_file";
+	__sys_accept4_file_fp = (void *)lookup_addr(symbol);
+	if(__sys_accept4_file_fp) {
+		klp_enable_patch(&patch);	
+	} 
 
 	return 0;
 }
 
-void exit_module(void) {}
+void exit_module(void) 
+{
+	unregister_kprobe(&kp);
+}
 
 MODULE_LICENSE("GPL");
 MODULE_INFO(livepatch, "Y");
