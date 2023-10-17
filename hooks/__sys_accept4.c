@@ -22,6 +22,7 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 	pr_info("__sysaccept4 hooked - here is your file descriptor -> %d\n", ret);
 	return ret;	
 }
+
 struct klp_func func = {
 	.old_name = "__sys_accept4",
 	.new_func = __sys_accept4_2
