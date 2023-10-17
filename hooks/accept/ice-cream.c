@@ -22,28 +22,6 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 	pr_info("__sysaccept4 hooked - here is your file descriptor -> %d\n", ret);
 	return ret;	
 }
-
-<<<<<<< HEAD
-=======
-unsigned long lookup_addr(const char *symbol)
-{
-	int ret;
-	unsigned long addr;
-	struct kprobe kp = { .symbol_name = symbol };
-
-	ret = register_kprobe(&kp);
-	if(ret == 0) {
-		addr = (unsigned long)kp.addr;
-		unregister_kprobe(&kp);
-	} else {
-		pr_info("REGISTER_KPROBE: %d\n", ret);
-		return 0;
-	}
-	
-	return addr;
-}
-
->>>>>>> d8359c02ce4ce7cfce6cb89151a4645fddbd1c14
 struct klp_func func = {
 	.old_name = "__sys_accept4",
 	.new_func = __sys_accept4_2
@@ -61,7 +39,7 @@ struct klp_patch patch = {
 int init_module(void)
 {
 	const char *symbol = "__sys_accept4_file";
-	__sys_accept4_file_fp = (void *)lookup_addr(symbol);
+	__sys_accept4_file_fp = kallsyms_lookup_name(symbol);
 	if(__sys_accept4_file_fp) {
 		klp_enable_patch(&patch);	
 	} 
