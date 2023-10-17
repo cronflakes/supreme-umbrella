@@ -23,6 +23,27 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 	return ret;	
 }
 
+<<<<<<< HEAD
+=======
+unsigned long lookup_addr(const char *symbol)
+{
+	int ret;
+	unsigned long addr;
+	struct kprobe kp = { .symbol_name = symbol };
+
+	ret = register_kprobe(&kp);
+	if(ret == 0) {
+		addr = (unsigned long)kp.addr;
+		unregister_kprobe(&kp);
+	} else {
+		pr_info("REGISTER_KPROBE: %d\n", ret);
+		return 0;
+	}
+	
+	return addr;
+}
+
+>>>>>>> d8359c02ce4ce7cfce6cb89151a4645fddbd1c14
 struct klp_func func = {
 	.old_name = "__sys_accept4",
 	.new_func = __sys_accept4_2
@@ -48,10 +69,7 @@ int init_module(void)
 	return 0;
 }
 
-void exit_module(void) 
-{
-	unregister_kprobe(&kp);
-}
+void exit_module(void) {}
 
 MODULE_LICENSE("GPL");
 MODULE_INFO(livepatch, "Y");
