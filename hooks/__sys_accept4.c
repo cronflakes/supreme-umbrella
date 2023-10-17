@@ -4,7 +4,7 @@
 #include <linux/file.h>
 #include <linux/livepatch.h>
 
-#include "../include/fakekallsyms.h"
+#include "include/fakekallsyms.h"
 
 int (*__sys_accept4_file_fp)(struct file *, unsigned, struct sockaddr __user *, int __user *, int, unsigned long);
 

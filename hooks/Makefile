@@ -1,6 +1,6 @@
 obj-m += hooks.o
 
-hooks-y := accept/ice-cream.o
+hooks-y := __sys_accept4.o
 hooks-y += fakekallsyms.o
 
 ccflags-y := -I ../include
