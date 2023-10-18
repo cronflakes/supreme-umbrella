@@ -19,28 +19,33 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 		fdput(f);	
 	}
 
-	pr_info("__sysaccept4 hooked - here is your file descriptor -> %d\n", ret);
+	pr_warn("__sysaccept4 hooked - here is your file descriptor -> %d\n", ret);
 	return ret;	
 }
 
-struct klp_func func = {
-	.old_name = "__sys_accept4",
-	.new_func = __sys_accept4_2
+struct klp_func funcs[] = {
+	{ 
+		.old_name = "__sys_accept4",
+		.new_func = __sys_accept4_2
+	}, {}
 };
 
-struct klp_object obj = {	
-	.funcs = &func
+struct klp_object objs[]= {	
+	{
+		.funcs = funcs
+	}, {}
 };
 
 struct klp_patch patch = {
 	.mod = THIS_MODULE,
-	.objs = &obj
+	.objs = objs
 };
 
 int init_module(void)
 {
 	const char *symbol = "__sys_accept4_file";
-	__sys_accept4_file_fp = kallsyms_lookup_name(symbol);
+	__sys_accept4_file_fp = (void *)kallsyms_lookup_name(symbol);
+
 	if(__sys_accept4_file_fp) {
 		klp_enable_patch(&patch);	
 	} 
