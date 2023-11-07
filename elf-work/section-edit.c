@@ -40,14 +40,20 @@ int main(int argc, char **argv) {
 
 	//section headers
 	for(int i = 0; i < ehdr->e_shnum; i++) {
-		int index;
+		Elf64_Rela *rela;
 		if(shdr[i].sh_type == SHT_RELA) {
-			//get relocation section
+			//get specific relocation section
 			if(strcmp(".rela.text", &strtbl[shdr[i].sh_name]) == 0) {
 				printf("Name: %s\n", &strtbl[shdr[i].sh_name]);
 				printf("Type: %d\n", shdr[i].sh_type);
-				//get relocation entry based on symbol table offset
-				index = get_symbol_index("__sys_accept4_file", addr, shdr, ehdr->e_shnum);
+				rela = (Elf64_Rela *)(addr + shdr[i].sh_offset);
+				//loop through relocation entries
+				for(int j = 0; j < shdr[i].sh_size / sizeof(Elf64_Rela); j++) {
+					printf("r_offset: %016llx\n", rela->r_offset);
+					printf("r_info: %016llx\n", rela->r_info);				
+					printf("r_addend: %d\n", rela->r_addend);				
+					rela++;
+				}
 			}
 		}	
 		
