@@ -9,8 +9,10 @@
 
 #include "include/findsymbol.h"
 
+#define DEBUG 0
+
 int main(int argc, char **argv) {
-	int fd;
+	int fd, relocs, marker = 0;
 	void *addr; 
 	char *strtbl;
 	struct stat s;
@@ -18,6 +20,7 @@ int main(int argc, char **argv) {
 	Elf64_Ehdr *ehdr;
 	Elf64_Phdr *phdr;
 	Elf64_Shdr *shdr;
+	Elf64_Rela *rela, *iter;
 
 	fd = open(argv[1], O_RDWR);
 	if(fd == -1)
@@ -40,19 +43,39 @@ int main(int argc, char **argv) {
 
 	//section headers
 	for(int i = 0; i < ehdr->e_shnum; i++) {
-		Elf64_Rela *rela;
+
 		if(shdr[i].sh_type == SHT_RELA) {
-			//get specific relocation section
 			if(strcmp(".rela.text", &strtbl[shdr[i].sh_name]) == 0) {
+				#if DEBUG
 				printf("Name: %s\n", &strtbl[shdr[i].sh_name]);
 				printf("Type: %d\n", shdr[i].sh_type);
+				#endif
+
 				rela = (Elf64_Rela *)(addr + shdr[i].sh_offset);
-				//loop through relocation entries
-				for(int j = 0; j < shdr[i].sh_size / sizeof(Elf64_Rela); j++) {
-					printf("r_offset: %016llx\n", rela->r_offset);
-					printf("r_info: %016llx\n", rela->r_info);				
-					printf("r_addend: %d\n", rela->r_addend);				
-					rela++;
+				relocs = shdr[i].sh_size / sizeof(Elf64_Rela);
+				iter = rela;
+				for(int j = 0; j < relocs; j++) {
+					#if DEBUG
+					printf("r_offset: %016llx\n", iter->r_offset);
+					printf("r_info: %016llx\n", iter->r_info);				
+					printf("r_addend: %d\n", iter->r_addend);				
+					#endif
+
+					//check symbol table offset to catch match
+					if((iter->r_info >> 32) == 0x2f) {
+						memset(iter, 0, sizeof(Elf64_Rela));
+						marker = j;			
+
+						while(marker < relocs) {
+							rela[marker] = rela[marker + 1];	
+							marker++;
+						}
+												
+						relocs--;
+						shdr[i].sh_size = sizeof(Elf64_Rela) * relocs;
+					}
+
+					iter++;
 				}
 			}
 		}	
