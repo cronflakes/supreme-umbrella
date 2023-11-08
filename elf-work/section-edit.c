@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "include/findsymbol.h"
+#include "include/removerela.h"
 
 #define DEBUG 0
 
@@ -41,9 +42,8 @@ int main(int argc, char **argv) {
 	//grab section string table
 	strtbl = addr + (shdr[ehdr->e_shstrndx].sh_offset);
 
-	//section headers
+	//cycle through sections
 	for(int i = 0; i < ehdr->e_shnum; i++) {
-
 		if(shdr[i].sh_type == SHT_RELA) {
 			if(strcmp(".rela.text", &strtbl[shdr[i].sh_name]) == 0) {
 				#if DEBUG
@@ -53,30 +53,7 @@ int main(int argc, char **argv) {
 
 				rela = (Elf64_Rela *)(addr + shdr[i].sh_offset);
 				relocs = shdr[i].sh_size / sizeof(Elf64_Rela);
-				iter = rela;
-				for(int j = 0; j < relocs; j++) {
-					#if DEBUG
-					printf("r_offset: %016llx\n", iter->r_offset);
-					printf("r_info: %016llx\n", iter->r_info);				
-					printf("r_addend: %d\n", iter->r_addend);				
-					#endif
-
-					//check symbol table offset to catch match
-					if((iter->r_info >> 32) == 0x2f) {
-						memset(iter, 0, sizeof(Elf64_Rela));
-						marker = j;			
-
-						while(marker < relocs) {
-							rela[marker] = rela[marker + 1];	
-							marker++;
-						}
-												
-						relocs--;
-						shdr[i].sh_size = sizeof(Elf64_Rela) * relocs;
-					}
-
-					iter++;
-				}
+				remove_rela(&shdr[i], rela, relocs, 0x2f);
 			}
 		}	
 		
