@@ -13,7 +13,7 @@
 #define DEBUG 0
 
 int main(int argc, char **argv) {
-	int fd, relocs, marker = 0;
+	int fd, relocs, marker, symbols = 0;
 	void *addr; 
 	char *strtbl;
 	struct stat s;
@@ -21,7 +21,8 @@ int main(int argc, char **argv) {
 	Elf64_Ehdr *ehdr;
 	Elf64_Phdr *phdr;
 	Elf64_Shdr *shdr;
-	Elf64_Rela *rela, *iter;
+	Elf64_Rela *rela;
+	Elf64_Sym *sym;
 
 	fd = open(argv[1], O_RDWR);
 	if(fd == -1)
@@ -39,6 +40,12 @@ int main(int argc, char **argv) {
 	phdr = (Elf64_Phdr *)(addr + ehdr->e_phoff);
 	shdr = (Elf64_Shdr *)(addr + ehdr->e_shoff);
 
+	//verify elf is relocatable
+	if(ehdr->e_type != ET_REL) {
+		printf("Input file must be relocatable\n");
+		return -1;
+	}
+		
 	//grab section string table
 	strtbl = addr + (shdr[ehdr->e_shstrndx].sh_offset);
 
@@ -56,7 +63,13 @@ int main(int argc, char **argv) {
 				remove_rela(&shdr[i], rela, relocs, 0x2f);
 			}
 		}	
+
+		//symbol table
+		if(shdr[i].sh_type == SHT_SYMTAB) {
+			sym = (ELf64_Sym *)(addr + shdr[i].sh_offset);				
+			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
 		
+		}
 	}
 
 	close(fd);
