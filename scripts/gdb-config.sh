@@ -5,6 +5,5 @@ if [ $EUID -eq 0 ]; then
 fi
 	
 wget https://raw.githubusercontent.com/hugsy/gef/main/scripts/gef.sh
-chmod gef.sh
+chmod +x gef.sh
 . gef.sh
-
