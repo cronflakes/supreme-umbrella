@@ -9,13 +9,15 @@
 
 #include "include/findsymbol.h"
 #include "include/removerela.h"
+#include "include/getsymstrtbl.h"
 
-#define DEBUG 0
+#define DEBUG 1
+#define WRITE 0
 
 int main(int argc, char **argv) {
 	int fd, relocs, marker, symbols = 0;
 	void *addr; 
-	char *strtbl;
+	char *sectstrtbl, *symstrtbl = NULL;
 	struct stat s;
 	
 	Elf64_Ehdr *ehdr;
@@ -47,28 +49,46 @@ int main(int argc, char **argv) {
 	}
 		
 	//grab section string table
-	strtbl = addr + (shdr[ehdr->e_shstrndx].sh_offset);
+	sectstrtbl = addr + (shdr[ehdr->e_shstrndx].sh_offset);
+
+	//grab symbol string table
+	symstrtbl = get_symstrtbl(addr, shdr, sectstrtbl, ehdr->e_shnum);
 
 	//cycle through sections
 	for(int i = 0; i < ehdr->e_shnum; i++) {
+		//remove relocation entry
 		if(shdr[i].sh_type == SHT_RELA) {
-			if(strcmp(".rela.text", &strtbl[shdr[i].sh_name]) == 0) {
-				#if DEBUG
-				printf("Name: %s\n", &strtbl[shdr[i].sh_name]);
+			if(strcmp(".rela.text", &sectstrtbl[shdr[i].sh_name]) == 0) {
+#if DEBUG
+				printf("Name: %s\n", &sectstrtbl[shdr[i].sh_name]);
 				printf("Type: %d\n", shdr[i].sh_type);
-				#endif
-
+#endif
 				rela = (Elf64_Rela *)(addr + shdr[i].sh_offset);
 				relocs = shdr[i].sh_size / sizeof(Elf64_Rela);
+#if WRITE
 				remove_rela(&shdr[i], rela, relocs, 0x2f);
+#endif
 			}
 		}	
 
-		//symbol table
+
+
+		//remove symbol entry
 		if(shdr[i].sh_type == SHT_SYMTAB) {
-			sym = (ELf64_Sym *)(addr + shdr[i].sh_offset);				
+			sym = (Elf64_Sym *)(addr + shdr[i].sh_offset);				
 			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
-		
+			for(int j = 0; j < symbols; j++) {
+				if(sym->st_info != STT_SECTION) {
+					printf("Name: %s\n", &symstrtbl[sym->st_name]);
+					printf("st_name: %d\n", sym->st_name);
+					printf("st_info: %c\n", sym->st_info);
+					printf("st_other: %c\n", sym->st_other);
+					printf("st_shndx: %d\n", sym->st_shndx);
+					printf("st_value: %llx\n", sym->st_value);
+					printf("st_size: %d\n\n", sym->st_size);
+				}
+				sym++;
+			}	
 		}
 	}
 
