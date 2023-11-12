@@ -3,7 +3,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-char *get_symstrtbl(void *addr, Elf64_Shdr *shdr, char *secstrtbl, int sections) {
+extern char *symstrtbl;
+
+char *get_symstrtbl(void *addr, Elf64_Shdr *shdr, char *secstrtbl, short sections) 
+{
 	char *symstrtbl = NULL;
 	for(int i = 0; i < sections; i++) {
 		if(shdr[i].sh_type == SHT_STRTAB) {

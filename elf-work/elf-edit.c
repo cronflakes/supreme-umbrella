@@ -4,9 +4,9 @@
 #include <elf.h>
 #include <unistd.h>
 #include <sys/mman.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
-#include <getopt.h>
 
 #include "include/removerela.h"
 #include "include/getsymstrtbl.h"
@@ -21,7 +21,7 @@ char *secstrtbl = NULL, *symstrtbl = NULL;
 int main(int argc, char **argv) 
 {
 	int fd, opt;
-	char *file, *symbol;
+	char *file = NULL, *symbol = NULL;
 	struct stat s;
 
 	struct option long_opts[] = { 
@@ -39,8 +39,7 @@ int main(int argc, char **argv)
 				symbol = strdup(optarg);
 				break;
 			case 'h':
-				printf("Usage: %s --input <ELF relocatable> [--remove-relocation <relocation entry>] \
-				[--remove-symbol <symbol>]\n", argv[0]);
+				printf("Usage: %s --input <ELF relocatable> [--remove-symbol <symbol>]\n", argv[0]);
 				break;
 			default:
 		}
