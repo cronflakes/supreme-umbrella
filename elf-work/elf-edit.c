@@ -21,8 +21,7 @@ char *secstrtbl = NULL, *symstrtbl = NULL;
 int main(int argc, char **argv) 
 {
 	int fd, opt;
-	const char *file; 
-	const char *symbol;
+	char *file, *symbol;
 	struct stat s;
 
 	struct option long_opts[] = { 

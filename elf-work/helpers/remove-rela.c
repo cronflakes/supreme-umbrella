@@ -35,7 +35,7 @@ void remove_rela(int sections, const char *section)
 	}
 }
 
-void remove_symbol(int sections, const char *symbol) 
+void remove_symbol(int sections, char *symbol) 
 {
 	int symbols, symindex;
 	Elf64_Sym *sym;
