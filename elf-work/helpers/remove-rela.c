@@ -1,5 +1,8 @@
 #include <elf.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+
 
 extern void *addr;
 extern long symindex;
@@ -7,6 +10,15 @@ extern Elf64_Ehdr *ehdr;
 extern Elf64_Shdr *shdr;
 extern char *secstrtbl;
 extern char *symstrtbl;
+
+Elf64_Shdr *get_section(char *section) 
+{
+	for(int i = 0; i < ehdr->e_shnum; i++) {
+		if(strncmp(&secstrtbl[shdr[i].sh_name], section, strlen(section)) == 0) {
+			return (Elf64_Shdr *)(addr + shdr[i].sh_offset);
+		}
+	}
+}
 
 void remove_rela(short sections, const char *section) 
 {
@@ -35,6 +47,38 @@ void remove_rela(short sections, const char *section)
 	}
 }
 
+void add_section(short sections, char *section) 
+{
+	//get last section 
+	unsigned long long added_addr = 0;
+	Elf64_Shdr *last = &shdr[sections - 1];
+	Elf64_Shdr *rela = get_section(".rela.text");
+
+	//strncpy((secstrtbl + last->sh_size), section, strlen(section));
+	added_addr = last->sh_offset + last->sh_size;
+	while((added_addr % 8) != 0) 
+		added_addr++;
+
+	last++;
+	last->sh_name = sections;
+	last->sh_offset = added_addr;
+	last->sh_type = SHT_RELA;
+	last->sh_size = ehdr->e_shentsize;
+	last->sh_addr = 0;
+	last->sh_addralign = 8;
+	last->sh_flags = SHF_ALLOC | SHF_OS_NONCONFORMING; 
+
+	//copy defaults from .rela.text section
+	if(rela != NULL) {
+		last->sh_link = rela->sh_link;
+		last->sh_info = rela->sh_info;
+		last->sh_entsize = rela->sh_entsize;
+	}
+
+	shdr[sections].sh_size += strlen(section);
+	ehdr->e_shnum = ++sections;
+}
+
 void remove_symbol(short sections, char *symbol) 
 {
 	int symbols;
@@ -60,6 +104,7 @@ void remove_symbol(short sections, char *symbol)
 void edit_symbol(short sections, char *symbol, int entry) 
 {
 	int symbols;
+	char klp_symbol[256] = ".klp.sym.vmlinux.";
 	Elf64_Sym *sym;
 	for(int i = 0; i < sections; i++) {
 		if(shdr[i].sh_type == SHT_SYMTAB) {
@@ -79,6 +124,10 @@ void edit_symbol(short sections, char *symbol, int entry)
 							break;
 						//st_shndx
 						case 3:
+							strcat(klp_symbol, symbol);
+							strncpy(&symstrtbl[sym->st_name], klp_symbol, strlen(klp_symbol));
+							sym->st_shndx = 0xff20;
+
 							break;
 						//st_value
 						case 4:

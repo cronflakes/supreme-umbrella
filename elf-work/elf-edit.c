@@ -11,7 +11,6 @@
 #include "include/removerela.h"
 #include "include/getsymstrtbl.h"
 
-//globals
 void *addr; 
 long symindex;
 Elf64_Ehdr *ehdr;
@@ -21,12 +20,13 @@ char *secstrtbl = NULL, *symstrtbl = NULL;
 int main(int argc, char **argv) 
 {
 	int fd, opt;
-	char *file = NULL, *symbol = NULL;
+	char *file = NULL, *symbol = NULL, *section = NULL;
 	struct stat s;
 
 	struct option long_opts[] = { 
 		{ "input", 1, NULL, 'i'},
 		{ "remove-symbol", 1, NULL, 's'},
+		{ "add-section", 1, NULL, 'a'},
 		{ "help", 0, NULL, 'h'}
 	};
 
@@ -38,8 +38,12 @@ int main(int argc, char **argv)
 			case 's': 
 				symbol = strdup(optarg);
 				break;
+			case 'a': 
+				section = strdup(optarg);
+				break;
 			case 'h':
-				printf("Usage: %s --input <ELF relocatable> [--remove-symbol <symbol>]\n", argv[0]);
+				printf("Usage: %s --input <ELF relocatable> [--remove-symbol <symbol>] \
+				[--add-section <section>]\n", argv[0]);
 				break;
 			default:
 		}
@@ -51,11 +55,18 @@ int main(int argc, char **argv)
 	if(stat(file, &s) != 0) 
 		return -1;
 
-	addr = mmap(NULL, s.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if(section != NULL) {
+		if(ftruncate(fd, (off_t)(s.st_size + 64)) == -1)
+			return -1;
+		
+		close(fd);
+		fd = open(file, O_RDWR);
+	}
+
+	addr = mmap(NULL, (size_t)(s.st_size + sizeof(Elf64_Shdr)), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if(!addr) 
 		return -1;
 	
-	//cast everything
 	ehdr = (Elf64_Ehdr *)addr;
 	shdr = (Elf64_Shdr *)(addr + ehdr->e_shoff);
 		
@@ -69,6 +80,7 @@ int main(int argc, char **argv)
 		remove_rela(ehdr->e_shnum, ".rela.text");
 	}
 
+	add_section(ehdr->e_shnum, section);
 	close(fd);
 
 	return 0;

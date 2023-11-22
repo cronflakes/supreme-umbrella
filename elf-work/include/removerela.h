@@ -4,5 +4,6 @@
 void remove_rela(short, char *);
 void remove_symbol(short, char *);
 void edit_symbol(short, char *, int);
+void add_section(short, char *);
 
 #endif
