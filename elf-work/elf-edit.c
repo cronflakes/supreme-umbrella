@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 		return -1;
 
 	if(section != NULL) {
-		if(ftruncate(fd, (off_t)(s.st_size + 64)) == -1)
+		if(ftruncate(fd, (off_t)(s.st_size + 64 + strlen(section) + 1)) == -1)
 			return -1;
 		
 		close(fd);
@@ -80,6 +80,8 @@ int main(int argc, char **argv)
 		remove_rela(ehdr->e_shnum, ".rela.text");
 	}
 
+	//additions
+	if(section != NULL)
 	add_section(ehdr->e_shnum, section);
 	close(fd);
 

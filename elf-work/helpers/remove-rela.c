@@ -2,7 +2,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
-
+#include <stdlib.h>
 
 extern void *addr;
 extern long symindex;
@@ -15,7 +15,7 @@ Elf64_Shdr *get_section(char *section)
 {
 	for(int i = 0; i < ehdr->e_shnum; i++) {
 		if(strncmp(&secstrtbl[shdr[i].sh_name], section, strlen(section)) == 0) {
-			return (Elf64_Shdr *)(addr + shdr[i].sh_offset);
+			return (Elf64_Shdr *)(&shdr[i]);
 		}
 	}
 }
@@ -49,18 +49,18 @@ void remove_rela(short sections, const char *section)
 
 void add_section(short sections, char *section) 
 {
-	//get last section 
+	int len = strlen(section);
 	unsigned long long added_addr = 0;
+	char *newentry = (char *)(secstrtbl + shdr[ehdr->e_shstrndx].sh_size);
 	Elf64_Shdr *last = &shdr[sections - 1];
 	Elf64_Shdr *rela = get_section(".rela.text");
 
-	//strncpy((secstrtbl + last->sh_size), section, strlen(section));
 	added_addr = last->sh_offset + last->sh_size;
 	while((added_addr % 8) != 0) 
 		added_addr++;
 
 	last++;
-	last->sh_name = sections;
+	last->sh_name = shdr[ehdr->e_shstrndx].sh_size;
 	last->sh_offset = added_addr;
 	last->sh_type = SHT_RELA;
 	last->sh_size = ehdr->e_shentsize;
@@ -75,8 +75,16 @@ void add_section(short sections, char *section)
 		last->sh_entsize = rela->sh_entsize;
 	}
 
-	shdr[sections].sh_size += strlen(section);
+	Elf64_Shdr *ptr = (Elf64_Shdr *)malloc((ehdr->e_shnum * ehdr->e_shentsize) + ehdr->e_shentsize);
+	memcpy(ptr, shdr, ehdr->e_shnum * ehdr->e_shentsize + ehdr->e_shentsize);
+	strcpy(newentry, section);
+
+	memcpy(addr + (ehdr->e_shoff + len + 1), ptr, (ehdr->e_shnum * ehdr->e_shentsize) + ehdr->e_shentsize);
+	shdr = addr + (ehdr->e_shoff + len + 1);
+	shdr[ehdr->e_shstrndx].sh_size += len + 1;
 	ehdr->e_shnum = ++sections;
+	ehdr->e_shoff += (len + 1);
+	free(ptr);
 }
 
 void remove_symbol(short sections, char *symbol) 
