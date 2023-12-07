@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 extern void *addr;
 extern int livepatch;
@@ -12,11 +13,10 @@ extern Elf64_Shdr *shdr;
 extern char *secstrtbl;
 extern char *symstrtbl;
 
-Elf64_Sym *livepatch_symbol = NULL;
-Elf64_Rela *livepatch_rela = NULL;
+Elf64_Sym livepatch_symbol;
+Elf64_Rela livepatch_rela;
 
-Elf64_Shdr *get_section(char *section) 
-{
+Elf64_Shdr *get_section(char *section) {
 	for(int i = 0; i < ehdr->e_shnum; i++) {
 		if(strncmp(&secstrtbl[shdr[i].sh_name], section, strlen(section)) == 0) {
 			return (Elf64_Shdr *)(&shdr[i]);
@@ -24,8 +24,19 @@ Elf64_Shdr *get_section(char *section)
 	}
 }
 
-void remove_rela(short sections, const char *section) 
-{
+void add_rela(short sections, const char *section) {
+	Elf64_Rela *new;
+	for(int i = 0; i < sections; i++) {
+		if(strcmp(section, &secstrtbl[shdr[i].sh_name]) == 0) {
+			new = (Elf64_Rela *)(addr + shdr[i].sh_offset);
+			new->r_offset = livepatch_rela.r_offset;
+			new->r_info = livepatch_rela.r_info;
+			new->r_addend = livepatch_rela.r_addend;	
+		}
+	}
+}
+
+void remove_rela(short sections, const char *section) {
 	int marker, relocs = 0;
 	Elf64_Rela *rela, *iter;
 	for(int i = 0; i < sections; i++) {
@@ -36,7 +47,7 @@ void remove_rela(short sections, const char *section)
 			for(int j = 0; j < relocs; j++) {
 				if((iter->r_info >> 32) == symindex) {
 					if(livepatch)
-						livepatch_rela = iter;
+						livepatch_rela = *iter;
 
 					marker = j;
 					while(marker < relocs) {
@@ -54,8 +65,7 @@ void remove_rela(short sections, const char *section)
 	}
 }
 
-void add_section(short sections, char *section) 
-{
+void add_section(short sections, char *section) {
 	int length = strlen(section) + 1;
 	unsigned long long added_addr = 0;
 	char *newentry = (char *)(secstrtbl + shdr[ehdr->e_shstrndx].sh_size);
@@ -69,7 +79,7 @@ void add_section(short sections, char *section)
 
 	last++;
 	last->sh_name = shdr[ehdr->e_shstrndx].sh_size;
-	last->sh_offset = added_addr;
+	last->sh_offset = added_addr + 16;
 	last->sh_type = SHT_RELA;
 	last->sh_size = sizeof(Elf64_Rela);
 	last->sh_addr = 0;
@@ -94,8 +104,41 @@ void add_section(short sections, char *section)
 	free(tmp);
 }
 
-void remove_symbol(short sections, char *symbol) 
-{
+void add_symbol(short sections, char *symbol, unsigned int filesize) {
+	int symbols;
+	Elf64_Sym *new;
+	unsigned long bytes_left = 0;
+	void *backup;
+	char *ptr2;
+
+	for(int i = 0; i < sections; i++) {
+		if(shdr[i].sh_type == SHT_SYMTAB) {
+			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
+			shdr[i].sh_size += sizeof(Elf64_Sym);
+			new = (Elf64_Sym *)(addr + (shdr[i].sh_offset + shdr[i].sh_size));
+			new = (Elf64_Sym *)&livepatch_symbol;
+		}
+
+		if((shdr[i].sh_type == SHT_STRTAB) && (strcmp(&secstrtbl[shdr[i].sh_name], ".strtab") == 0)) {
+			for(int j = i; j < sections; j++) {
+				bytes_left += shdr[j].sh_size;
+			}
+			backup = malloc(bytes_left);
+			memcpy(backup, addr + shdr[i + 1].sh_offset, bytes_left);
+			strncpy((char *)(symstrtbl + shdr[i].sh_size), symbol, strlen(symbol));
+			shdr[i].sh_size += strlen(symbol);
+			ptr2 = (char *)(addr + shdr[i].sh_size);
+			while((*ptr2 % 8) != 0)
+				ptr2++;
+
+			memcpy(ptr2, backup, bytes_left - (strlen(symbol) + 1));
+			free(backup);
+			break;
+		}
+	}
+}
+
+void remove_symbol(short sections, char *symbol) {
 	int symbols;
 	Elf64_Sym *sym;
 	for(int i = 0; i < sections; i++) {
@@ -105,10 +148,7 @@ void remove_symbol(short sections, char *symbol)
 			for(int j = 0; j < symbols; j++) {
 				if(strncmp(symbol, &symstrtbl[sym->st_name], strlen(symbol)) == 0) {
 					symindex = j;
-					if(livepatch)
-						livepatch_symbol = sym;
-						return;
-
+					livepatch_symbol = *sym;
 					sym[j] = sym[j + 1];			
 					symbols--;
 					shdr[i].sh_size -= sizeof(Elf64_Sym);
@@ -120,120 +160,3 @@ void remove_symbol(short sections, char *symbol)
 	}	
 }
 
-void edit_symbol(short sections, char *symbol, int entry) 
-{
-	int symbols;
-	Elf64_Sym *sym;
-	for(int i = 0; i < sections; i++) {
-		if(shdr[i].sh_type == SHT_SYMTAB) {
-			sym = (Elf64_Sym *)(addr + shdr[i].sh_offset);
-			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
-			for(int j = 0; j < symbols; j++) {
-				if(strncmp(symbol, &symstrtbl[sym->st_name], strlen(symbol)) == 0) {
-					switch(entry) {
-						//st_name
-						case 0:
-							break;
-						//st_info
-						case 1:
-							break;
-						//st_other
-						case 2:
-							break;
-						//st_shndx
-						case 3:
-							strncpy(&symstrtbl[sym->st_name], symbol, strlen(symbol));
-
-							sym->st_shndx = 0xff20;
-							break;
-						//st_value
-						case 4:
-							break;
-						//st_size
-						case 5:
-							break;
-						default:
-							return;
-					}
-				}
-
-				sym++;
-			}
-		}
-	}	
-}
-
-void livepatch_handler(char *livepatch_symbol) 
-{
-	//1. add new rela section
-	add_section(ehdr->e_shnum, ".klp.sym.vmlinux.text");
-
-	//2. remove rela entry from .rela.text
-	remove_symbol(ehdr->e_shnum, livepatch_symbol);
-	remove_rela(ehdr->e_shnum, livepatch_symbol);
-
-	//3. add rela to new section
-	Elf64_Rela *rela;
-	for(int i = 0; i < ehdr->e_shnum; i++) {
-		if((shdr[i].sh_type == SHT_RELA) && (strcmp(".klp.sym.vmlinux.text", &secstrtbl[shdr[i].sh_name]) == 0)) {
-			rela = addr + shdr[i].sh_offset;
-			if(livepatch_rela != NULL) {
-				rela->r_offset = livepatch_rela->r_offset;
-				rela->r_info = livepatch_rela->r_info;
-				rela->r_addend = livepatch_rela->r_addend;
-			}
-			break;
-		}
-	}
-
-	//4. modify symbol
-	Elf64_Sym *sym;
-	for(int i = 0; i < ehdr->e_shnum; i++) {
-		if((shdr[i].sh_type == SHT_SYMTAB)) {
-			sym = (Elf64_Sym *)(addr + shdr[i].sh_offset);
-			for(int j = 0; j < (shdr[i].sh_size / sizeof(Elf64_Sym)); j++) {
-				if(sym[j].st_name == symindex) {
-					//put new string table index here
-					sym[j].st_shndx = 0xff20;
-					break;
-				}
-			}
-		}
-	}
-
-	//symbol table
-
-	char new_symbol[256];
-	snprintf(new_symbol, 20 + strlen(livepatch_symbol), "%s%s%s", ".klp.sym.vmlinux.", livepatch_symbol, ",0");
-
-	int remaining_sections = 0;
-	int size_needed = 0;
-	void *ptr = NULL;
-	char *new_entry = NULL;
-
-	for(int i = 0; i < ehdr->e_shnum; i++) {
-		if(shdr[i].sh_type == SHT_STRTAB && (strcmp(".strtab", &secstrtbl[shdr[i].sh_name]))) {
-			//modify string table
-			new_entry = (char *)symstrtbl + shdr[i].sh_size;
-			remaining_sections = ehdr->e_shnum - i;	
-			for(int j = 0; j < remaining_sections; j++) {
-				size_needed += shdr[i + j].sh_size;
-
-			}
-
-			ptr = malloc(size_needed + strlen(new_symbol));
-			memcpy(ptr, addr + shdr[i + 1].sh_offset, size_needed + (ehdr->e_shnum * ehdr->e_shentsize));
-			strcpy(new_entry, livepatch_symbol);
-			memcpy(addr + (shdr[i + 1].sh_offset + 24), ptr, size_needed + (ehdr->e_shnum * ehdr->e_ehsize));
-			shdr[i].sh_size += 16;		
-
-		}
-	}
-
-
-
-
-
-
-	printf("Relocatable file adjusted for livepatch insertion\n");
-}
