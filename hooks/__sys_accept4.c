@@ -4,7 +4,6 @@
 #include <linux/file.h>
 #include <linux/livepatch.h>
 #include <uapi/linux/in.h>
-#include <linux/fdtable.h>
 
 #include "include/fakekallsyms.h"
 
