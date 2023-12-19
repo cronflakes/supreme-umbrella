@@ -25,8 +25,6 @@ int __sys_accept4_2(int fd, struct sockaddr __user *upeer_sockaddr, int __user *
 
 	if(addr_in != NULL)
 		printk(KERN_ERR "hooked accept from %pI4 on port %d, here is your fd --> %d for pid --> %d", &(addr_in->sin_addr.s_addr), ntohs(addr_in->sin_port), ret, pid);
-		//printk(KERN_ERR "hooked accept from %pI4 on port %d, here is your fd --> %d", &((struct sockaddr_in *)addr_in)->sin_addr.s_addr, ntohs(addr_in->sin_port), ret);
-		//printk(KERN_ERR "hooked accept from %pI4 on port %d, here is your fd --> %d", addr_in->sin_addr.s_addr, ntohs(addr_in->sin_port), ret);
 
 	return ret;	
 }
