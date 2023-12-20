@@ -107,7 +107,6 @@ void add_section(short sections, char *section) {
 void add_symbol(short sections, char *symbol, unsigned int filesize) {
 	int symbols;
 	Elf64_Sym *new;
-	unsigned long bytes_left = 0;
 	void *backup;
 	char *ptr2;
 
@@ -118,20 +117,19 @@ void add_symbol(short sections, char *symbol, unsigned int filesize) {
 			new = (Elf64_Sym *)(addr + (shdr[i].sh_offset + shdr[i].sh_size));
 			new = (Elf64_Sym *)&livepatch_symbol;
 		}
+	}
 
+	for(int i = 0; i < sections; i++) {
 		if((shdr[i].sh_type == SHT_STRTAB) && (strcmp(&secstrtbl[shdr[i].sh_name], ".strtab") == 0)) {
-			for(int j = i; j < sections; j++) {
-				bytes_left += shdr[j].sh_size;
-			}
-			backup = malloc(bytes_left);
-			memcpy(backup, addr + shdr[i + 1].sh_offset, bytes_left);
+			backup = malloc(filesize);
+			memcpy(backup, addr + shdr[i + 1].sh_offset, filesize);
 			strncpy((char *)(symstrtbl + shdr[i].sh_size), symbol, strlen(symbol));
 			shdr[i].sh_size += strlen(symbol);
 			ptr2 = (char *)(addr + shdr[i].sh_size);
 			while((*ptr2 % 8) != 0)
 				ptr2++;
 
-			memcpy(ptr2, backup, bytes_left - (strlen(symbol) + 1));
+			memcpy(ptr2, backup, filesize);
 			free(backup);
 			break;
 		}
@@ -139,19 +137,25 @@ void add_symbol(short sections, char *symbol, unsigned int filesize) {
 }
 
 void remove_symbol(short sections, char *symbol) {
-	int symbols;
-	Elf64_Sym *sym;
+	int marker, symbols;
+	Elf64_Sym *sym, *iter;
 	for(int i = 0; i < sections; i++) {
 		if(shdr[i].sh_type == SHT_SYMTAB) {
 			sym = (Elf64_Sym *)(addr + shdr[i].sh_offset);
 			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
 			for(int j = 0; j < symbols; j++) {
-				if(strncmp(symbol, &symstrtbl[sym->st_name], strlen(symbol)) == 0) {
-					symindex = j;
-					livepatch_symbol = *sym;
-					sym[j] = sym[j + 1];			
-					symbols--;
+				if(strcmp(symbol, &symstrtbl[sym->st_name]) == 0) {
+					marker = j;
+					iter = sym + 1;
+					while(marker < symbols)	{
+						*sym = *iter;
+						sym++;
+						iter++;
+						marker++;
+					}
+
 					shdr[i].sh_size -= sizeof(Elf64_Sym);
+					break;
 				}
 
 				sym++;
