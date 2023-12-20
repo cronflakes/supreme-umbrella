@@ -3,16 +3,20 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 extern void *addr;
+extern int livepatch;
 extern long symindex;
 extern Elf64_Ehdr *ehdr;
 extern Elf64_Shdr *shdr;
 extern char *secstrtbl;
 extern char *symstrtbl;
 
-Elf64_Shdr *get_section(char *section) 
-{
+Elf64_Sym livepatch_symbol;
+Elf64_Rela livepatch_rela;
+
+Elf64_Shdr *get_section(char *section) {
 	for(int i = 0; i < ehdr->e_shnum; i++) {
 		if(strncmp(&secstrtbl[shdr[i].sh_name], section, strlen(section)) == 0) {
 			return (Elf64_Shdr *)(&shdr[i]);
@@ -20,40 +24,58 @@ Elf64_Shdr *get_section(char *section)
 	}
 }
 
-void remove_rela(short sections, const char *section) 
-{
-	int marker, relocs = 0;
+void add_rela(short sections, const char *section) {
+	Elf64_Rela *new;
+	for(int i = 0; i < sections; i++) {
+		if(strcmp(section, &secstrtbl[shdr[i].sh_name]) == 0) {
+			new = (Elf64_Rela *)(addr + shdr[i].sh_offset);
+			new->r_offset = livepatch_rela.r_offset;
+			new->r_info = livepatch_rela.r_info;
+			new->r_addend = livepatch_rela.r_addend;	
+		}
+	}
+}
+
+void remove_rela(short sections, const char *section) {
+	int marker, relocs;
 	Elf64_Rela *rela, *iter;
 	for(int i = 0; i < sections; i++) {
 		if((shdr[i].sh_type == SHT_RELA) && (strcmp(section, &secstrtbl[shdr[i].sh_name]) == 0)) {
 			rela = (Elf64_Rela *)(addr + shdr[i].sh_offset);
-			iter = rela;
 			relocs = shdr[i].sh_size / sizeof(Elf64_Rela);	
 			for(int j = 0; j < relocs; j++) {
-				if((iter->r_info >> 32) == symindex) {
+				if((rela->r_info >> 32) == symindex) {
 					marker = j;
+					iter = rela + 1;
 					while(marker < relocs) {
-						rela[marker] = rela[marker + 1];
+						*rela = *iter;
+						uint32_t x = ELF64_R_SYM(rela->r_info);
+						uint32_t y = ELF64_R_TYPE(rela->r_info);
+						uint64_t z = ELF64_R_INFO(--x, y);
+						rela->r_info = z;
+
+						rela++;
+						iter++;
 						marker++;
 					}
 
-					relocs--;
-					shdr[i].sh_size = sizeof(Elf64_Rela) * relocs;
+					shdr[i].sh_size -= sizeof(Elf64_Rela);
+					break;
 				}
-
-				iter++;
+				
+				rela++;
 			}
 		}
 	}
 }
 
-void add_section(short sections, char *section) 
-{
-	int len = strlen(section);
+void add_section(short sections, char *section) {
+	int length = strlen(section) + 1;
 	unsigned long long added_addr = 0;
 	char *newentry = (char *)(secstrtbl + shdr[ehdr->e_shstrndx].sh_size);
 	Elf64_Shdr *last = &shdr[sections - 1];
 	Elf64_Shdr *rela = get_section(".rela.text");
+	Elf64_Shdr *tmp = (Elf64_Shdr *)malloc((ehdr->e_shnum * ehdr->e_shentsize) + ehdr->e_shentsize);
 
 	added_addr = last->sh_offset + last->sh_size;
 	while((added_addr % 8) != 0) 
@@ -61,9 +83,9 @@ void add_section(short sections, char *section)
 
 	last++;
 	last->sh_name = shdr[ehdr->e_shstrndx].sh_size;
-	last->sh_offset = added_addr;
+	last->sh_offset = added_addr + 16;
 	last->sh_type = SHT_RELA;
-	last->sh_size = ehdr->e_shentsize;
+	last->sh_size = sizeof(Elf64_Rela);
 	last->sh_addr = 0;
 	last->sh_addralign = 8;
 	last->sh_flags = SHF_ALLOC | SHF_OS_NONCONFORMING; 
@@ -74,78 +96,70 @@ void add_section(short sections, char *section)
 		last->sh_info = rela->sh_info;
 		last->sh_entsize = rela->sh_entsize;
 	}
-
-	Elf64_Shdr *ptr = (Elf64_Shdr *)malloc((ehdr->e_shnum * ehdr->e_shentsize) + ehdr->e_shentsize);
-	memcpy(ptr, shdr, ehdr->e_shnum * ehdr->e_shentsize + ehdr->e_shentsize);
+	
+	//avoid section string table spilling into section headers
+	memcpy(tmp, shdr, ehdr->e_shnum * ehdr->e_shentsize + ehdr->e_shentsize);
 	strcpy(newentry, section);
-
-	memcpy(addr + (ehdr->e_shoff + len + 1), ptr, (ehdr->e_shnum * ehdr->e_shentsize) + ehdr->e_shentsize);
-	shdr = addr + (ehdr->e_shoff + len + 1);
-	shdr[ehdr->e_shstrndx].sh_size += len + 1;
+	memcpy(addr + (ehdr->e_shoff + length + sizeof(Elf64_Rela)), tmp, (ehdr->e_shnum * ehdr->e_shentsize) + ehdr->e_shentsize);
+	shdr = addr + (ehdr->e_shoff + sizeof(Elf64_Rela) + length);
+	shdr[ehdr->e_shstrndx].sh_size += length;
 	ehdr->e_shnum = ++sections;
-	ehdr->e_shoff += (len + 1);
-	free(ptr);
+	ehdr->e_shoff += (length + sizeof(Elf64_Rela));
+	free(tmp);
 }
 
-void remove_symbol(short sections, char *symbol) 
-{
+void add_symbol(short sections, char *symbol, unsigned int filesize) {
 	int symbols;
-	Elf64_Sym *sym;
+	Elf64_Sym *new;
+	void *backup;
+	char *ptr2;
+
 	for(int i = 0; i < sections; i++) {
 		if(shdr[i].sh_type == SHT_SYMTAB) {
-			sym = (Elf64_Sym *)(addr + shdr[i].sh_offset);
 			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
-			for(int j = 0; j < symbols; j++) {
-				if(strncmp(symbol, &symstrtbl[sym->st_name], strlen(symbol)) == 0) {
-					sym[j] = sym[j + 1];			
-					symindex = j;
-					symbols--;
-					shdr[i].sh_size -= sizeof(Elf64_Sym);
-				}
-
-				sym++;
-			}
+			shdr[i].sh_size += sizeof(Elf64_Sym);
+			new = (Elf64_Sym *)(addr + (shdr[i].sh_offset + shdr[i].sh_size));
+			new = (Elf64_Sym *)&livepatch_symbol;
 		}
-	}	
+	}
+
+	for(int i = 0; i < sections; i++) {
+		if((shdr[i].sh_type == SHT_STRTAB) && (strcmp(&secstrtbl[shdr[i].sh_name], ".strtab") == 0)) {
+			backup = malloc(filesize);
+			memcpy(backup, addr + shdr[i + 1].sh_offset, filesize);
+			strncpy((char *)(symstrtbl + shdr[i].sh_size), symbol, strlen(symbol));
+			shdr[i].sh_size += strlen(symbol);
+			ptr2 = (char *)(addr + shdr[i].sh_size);
+			while((*ptr2 % 8) != 0)
+				ptr2++;
+
+			memcpy(ptr2, backup, filesize);
+			free(backup);
+			break;
+		}
+	}
 }
 
-void edit_symbol(short sections, char *symbol, int entry) 
-{
-	int symbols;
-	char klp_symbol[256] = ".klp.sym.vmlinux.";
-	Elf64_Sym *sym;
+void remove_symbol(short sections, char *symbol) {
+	int marker, symbols;
+	Elf64_Sym *sym, *iter;
 	for(int i = 0; i < sections; i++) {
 		if(shdr[i].sh_type == SHT_SYMTAB) {
 			sym = (Elf64_Sym *)(addr + shdr[i].sh_offset);
 			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
 			for(int j = 0; j < symbols; j++) {
-				if(strncmp(symbol, &symstrtbl[sym->st_name], strlen(symbol)) == 0) {
-					switch(entry) {
-						//st_name
-						case 0:
-							break;
-						//st_info
-						case 1:
-							break;
-						//st_other
-						case 2:
-							break;
-						//st_shndx
-						case 3:
-							strcat(klp_symbol, symbol);
-							strncpy(&symstrtbl[sym->st_name], klp_symbol, strlen(klp_symbol));
-							sym->st_shndx = 0xff20;
-
-							break;
-						//st_value
-						case 4:
-							break;
-						//st_size
-						case 5:
-							break;
-						default:
-							return;
+				if(strcmp(symbol, &symstrtbl[sym->st_name]) == 0) {
+					symindex = marker = j;
+					iter = sym + 1;
+					while(marker < symbols)	{
+						*sym = *iter;
+						sym++;
+						iter++;
+						marker++;
 					}
+
+					shdr[i].sh_size -= sizeof(Elf64_Sym);
+					break;
 				}
 
 				sym++;
@@ -153,3 +167,4 @@ void edit_symbol(short sections, char *symbol, int entry)
 		}
 	}	
 }
+
