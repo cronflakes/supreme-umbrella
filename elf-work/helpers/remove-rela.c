@@ -37,29 +37,33 @@ void add_rela(short sections, const char *section) {
 }
 
 void remove_rela(short sections, const char *section) {
-	int marker, relocs = 0;
+	int marker, relocs;
 	Elf64_Rela *rela, *iter;
 	for(int i = 0; i < sections; i++) {
 		if((shdr[i].sh_type == SHT_RELA) && (strcmp(section, &secstrtbl[shdr[i].sh_name]) == 0)) {
 			rela = (Elf64_Rela *)(addr + shdr[i].sh_offset);
-			iter = rela;
 			relocs = shdr[i].sh_size / sizeof(Elf64_Rela);	
 			for(int j = 0; j < relocs; j++) {
-				if((iter->r_info >> 32) == symindex) {
-					if(livepatch)
-						livepatch_rela = *iter;
-
+				if((rela->r_info >> 32) == symindex) {
 					marker = j;
+					iter = rela + 1;
 					while(marker < relocs) {
-						rela[marker] = rela[marker + 1];
+						*rela = *iter;
+						uint32_t x = ELF64_R_SYM(rela->r_info);
+						uint32_t y = ELF64_R_TYPE(rela->r_info);
+						uint64_t z = ELF64_R_INFO(--x, y);
+						rela->r_info = z;
+
+						rela++;
+						iter++;
 						marker++;
 					}
 
-					relocs--;
-					shdr[i].sh_size = sizeof(Elf64_Rela) * relocs;
+					shdr[i].sh_size -= sizeof(Elf64_Rela);
+					break;
 				}
-
-				iter++;
+				
+				rela++;
 			}
 		}
 	}
@@ -145,7 +149,7 @@ void remove_symbol(short sections, char *symbol) {
 			symbols = shdr[i].sh_size / sizeof(Elf64_Sym);
 			for(int j = 0; j < symbols; j++) {
 				if(strcmp(symbol, &symstrtbl[sym->st_name]) == 0) {
-					marker = j;
+					symindex = marker = j;
 					iter = sym + 1;
 					while(marker < symbols)	{
 						*sym = *iter;
